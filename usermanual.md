@@ -30,7 +30,7 @@ The application requires API keys to communicate with GitHub and Groq.
    ```ini
    GROQ_API_KEY="your_actual_groq_key_here"
    GITHUB_TOKEN="your_actual_github_token_here"
-   ACTIVELOOP_TOKEN="your_activeloop_token_here"
+
    ```
    *(Note: Without a valid GitHub token, the app will quickly hit rate limits and fail to load repositories).*
 
