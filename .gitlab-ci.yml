@@ -1,0 +1,25 @@
+stages:
+  - build
+  - test
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+
+build_job:
+  stage: build
+  image: python:3.11
+  script:
+    - echo "Setting up Python environment..."
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
+
+test_job:
+  stage: test
+  image: python:3.11
+  script:
+    - echo "Running basic checks..."
+    - python -m py_compile main.py
