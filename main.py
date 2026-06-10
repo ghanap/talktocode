@@ -3,19 +3,19 @@ import requests
 import os
 from dotenv import load_dotenv
 import pandas as pd
-from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.prompts import PromptTemplate
 from langchain.document_loaders import CSVLoader,TextLoader,DirectoryLoader
 from langchain.text_splitter import CharacterTextSplitter
 from langchain.chains import RetrievalQA
-from langchain.llms import OpenAI 
+from langchain_groq import ChatGroq
 from langchain.vectorstores import FAISS 
 import utils.config as config
 from github import Github
 from utils.constants import *
 
 load_dotenv()
-os.environ['OPENAI_API_KEY'] = os.getenv('OPENAI_API_KEY')
+os.environ['GROQ_API_KEY'] = os.getenv('GROQ_API_KEY')
 os.environ['GITHUB_TOKEN'] = os.getenv('GITHUB_TOKEN')
 os.environ['ACTIVELOOP_TOKEN'] = os.getenv('ACTIVELOOP_TOKEN')
 
@@ -126,7 +126,7 @@ def get_user_repos(username):
 
     loader = CSVLoader(file_path="repo_data.csv", encoding ="utf-8")
     csv_data = loader.load()
-    csv_embeddings = OpenAIEmbeddings()
+    csv_embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
     vectors = FAISS.from_documents(csv_data, csv_embeddings)
     
     # Create a question-answering chain using the index
@@ -180,7 +180,7 @@ Step 1: Analyze each row and it's contents in the CSV file , each Row represents
     
     chain_type_kwargs = {"prompt": PROMPT}
     
-    chain = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever(), input_key="question" , chain_type_kwargs=chain_type_kwargs)
+    chain = RetrievalQA.from_chain_type(llm=ChatGroq(model_name="mixtral-8x7b-32768", temperature=0), chain_type="stuff", retriever=vectors.as_retriever(), input_key="question" , chain_type_kwargs=chain_type_kwargs)
     
     
     st.subheader("Most Technically Complex Github Repository is")
