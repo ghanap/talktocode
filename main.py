@@ -29,17 +29,18 @@ st.set_page_config(page_title="GitHub Repositories List" , page_icon=":computer:
 # Function to fetch GitHub repositories
 @st.cache_data # Cache data so that we don't have to fetch it again
 def fetch_github_repos(username):
-    # url = f'https://api.github.com/users/{username}/repos'
-    # response = requests.get(url)
-    # if response.status_code == 200:
-    #     return response.json()
-    # else:
-    #     return None
     repos = []
     page = 1
+    github_token = os.environ.get('GITHUB_TOKEN')
+    headers = {}
+    if github_token and github_token != "dummy_github_token":
+        headers['Authorization'] = f"token {github_token}"
+        
     while True:
         url = f"https://api.github.com/users/{username}/repos?page={page}&per_page=50"
-        response = requests.get(url)
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            break
         data = response.json()
         if not data:
             break
@@ -241,12 +242,17 @@ def main():
 
     # Display the repositories
     if submit_button:
+        # Extract username if a full URL was pasted
+        if "http" in username:
+            username = username.strip("/").split("/")[-1]
+            
         st.subheader(f"Repositories for {username}")
         repos = fetch_github_repos(username)
         if repos:
             display_repos(repos)
             st.info("Analysis of the repositories using LangChain and ChatGPT started. Please wait...")
             get_user_repos(username)
+        else:
             st.error("Invalid username or unable to fetch repositories")
 
     # Clear the input field
