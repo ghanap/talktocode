@@ -1,270 +1,127 @@
 import streamlit as st
-import requests
 import os
+import tempfile
+import subprocess
 from dotenv import load_dotenv
-import pandas as pd
+
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_core.prompts import PromptTemplate
-from langchain_community.document_loaders import CSVLoader,TextLoader,DirectoryLoader
-from langchain_text_splitters import CharacterTextSplitter
-from langchain.chains import RetrievalQA
+from langchain_community.vectorstores import FAISS
+from langchain.chains import ConversationalRetrievalChain
 from langchain_groq import ChatGroq
-from langchain_community.vectorstores import FAISS 
-import utils.config as config
-from github import Github
-from utils.constants import *
+from langchain.memory import ConversationBufferMemory
 
 load_dotenv()
 os.environ['GROQ_API_KEY'] = os.getenv('GROQ_API_KEY', '')
 os.environ['GITHUB_TOKEN'] = os.getenv('GITHUB_TOKEN', '')
 
+st.set_page_config(page_title="Talk To Code Chatbot", page_icon="💬", layout="wide")
 
+def load_text_files(directory):
+    docs = []
+    valid_extensions = {'.py', '.js', '.jsx', '.ts', '.tsx', '.html', '.css', '.md', '.cpp', '.c', '.h', '.hpp', '.java', '.go', '.rs', '.txt', '.json', '.yml', '.yaml', '.toml'}
+    for root, _, files in os.walk(directory):
+        if '.git' in root:
+            continue
+        for file in files:
+            ext = os.path.splitext(file)[1].lower()
+            if ext in valid_extensions:
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    rel_path = os.path.relpath(file_path, directory)
+                    docs.append(Document(page_content=content, metadata={"source": rel_path}))
+                except Exception:
+                    pass
+    return docs
 
-
-st.set_page_config(page_title="GitHub Repositories List" , page_icon=":computer:" , layout="wide" , initial_sidebar_state="expanded")
-
-
-
-
-# Function to fetch GitHub repositories
-@st.cache_data # Cache data so that we don't have to fetch it again
-def fetch_github_repos(username):
-    repos = []
-    page = 1
-    github_token = os.environ.get('GITHUB_TOKEN')
-    headers = {}
-    if github_token and github_token != "dummy_github_token":
-        headers['Authorization'] = f"token {github_token}"
-        
-    while True:
-        url = f"https://api.github.com/users/{username}/repos?page={page}&per_page=50"
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            break
-        data = response.json()
-        if not data:
-            break
-        repos.extend([(repo) for repo in data])
-        page += 1
-    return repos
-
-# Function to display repositories
-def display_repos(repos):
-    for repo in repos:
-        repo_name = repo["name"]
-        repo_url = repo["html_url"]
-        st.write(f"[{repo_name}]({repo_url})")
- 
- 
- 
-# def final_analysis(df):
-#     df.to_csv("data.csv")
-#     loader = CSVLoader(file_path="data.csv", encoding ="utf-8")
-#     csv_data = loader.load()
-#     csv_embeddings = OpenAIEmbeddings()
-#     vectors = FAISS.from_documents(csv_data, csv_embeddings)
+@st.cache_resource(show_spinner=False)
+def load_and_index_repo(repo_url):
+    temp_dir = tempfile.mkdtemp()
     
-#     # Create a question-answering chain using the index
-#     chain = RetrievalQA.from_chain_type(llm=OpenAI(), chain_type="stuff", retriever=vectors.as_retriever(), input_key="question")
-    
-#     # Pass a query to the chain
-#     query = """
-#     You are an inteelligent CSV Agent who can  understand CSV files and their contents. You are given a CSV file with the following columns: Repository Name, Repository Link, Analysis. You are asked to find the most technically complex and challenging repository from the given CSV file. 
-    
-#     What is the most technically challenging repository from the given CSV file?
-#     Return the name of the repository , the link to the repository and the analysis of the repository showing why it is the most technically challenging/Complex repository.
-    
-#     The output should be in the following format:
-    
-#     Repository Name: <name of the repository>
-#     Repository Link: <link to the repository>
-#     Analysis: <analysis of the repository>
-    
-#     Provide a clickable link to the repository as well like this:
-#     [Repository Name](Repository Link)
-    
-#     """
-#     response = chain({"question": query})
-#     st.write(response['result'])
-#     st.stop()
+    # Clone the repository
+    try:
+        subprocess.run(["git", "clone", "--depth", "1", repo_url, temp_dir], check=True, capture_output=True)
+    except subprocess.CalledProcessError as e:
+        return None, f"Failed to clone repository: {e.stderr.decode()}"
 
+    # Load documents
+    docs = load_text_files(temp_dir)
+    if not docs:
+        return None, "No text or code files found in the repository."
 
-   
+    # Split documents
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splits = text_splitter.split_documents(docs)
 
-def get_user_repos(username):
-    """Gets the repository information of each of the repositories of a GitHub user.
-
-    Args:
-        username: The username of the GitHub user.
-
-    Returns:
-        A list of dictionaries, where each dictionary contains the information of a repository.
-    """
-    client = Github()
-
-    user = client.get_user(username)
-    repos = user.get_repos()
-
-    repo_info = []
+    # Embed and index
+    embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+    vectorstore = FAISS.from_documents(splits, embeddings)
     
-    for repo in repos:
-        try:
-            readme_text = repo.get_readme().decoded_content.decode('utf-8')[:2000]
-        except:
-            readme_text = "No README available."
-            
-        repo_info.append({
-            "name": repo.name,
-            "description": repo.description,
-            "language": repo.language,
-            "stars": repo.stargazers_count,
-            "forks": repo.forks_count,
-            "readme_content": readme_text,
-            "contents" : [f.path for f in repo.get_contents("")][:20],
-        })
-        
-    repo_info_df = pd.DataFrame(repo_info)
-    repo_info_df.to_csv("repo_data.csv")
+    return vectorstore, "Success"
 
-    loader = CSVLoader(file_path="repo_data.csv", encoding ="utf-8")
-    csv_data = loader.load()
-    csv_embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-    vectors = FAISS.from_documents(csv_data, csv_embeddings)
-    
-    # Create a question-answering chain using the index
-    
-    context = """    You are Supersmart Github Repository AI system. You are a superintelligent AI that answers questions about Github Repositories and can understand the technical complexity if the repo.
-
-You are:
-    - helpful & friendly
-    - good at answering complex questions in simple language
-    - an expert in all programming languages
-    - able to infer the intent of the user's question
-
-   
-Remember You are an inteelligent CSV Agent who can  understand CSV files and their contents. You are given a CSV file with the following columns: Repository Name, Repository Link, Analysis. You are asked to find the most technically complex and challenging repository from the given CSV file. 
-    
-To measure the technical complexity of a GitHub repository using the provided API endpoints, You will analyze various factors such as the number of commits, branches, pull requests, issues,contents , number of forks , stars , and contributors. Additionally, you will consider the programming languages used, the size of the codebase, and the frequency of updates.
-You will Analyze the following GitHub repository factors to determine the technical complexity of the codebase and calculate a complexity score for each project:
-
-1.Description
-2.languages used in the repository
-3.Number of stars
-4.Number of forks
-5.Labels of the repository
-6.The actual README content and the architecture/features described within it
-7.Top-level file structure
-
-You can consider other factors as well if you think they are relevant for determining the technical complexity of a GitHub repository.
-Calculate the complexity score for each project by assigning weights to each factor and summing up the weighted scores. 
-
-The project with the highest complexity score will be considered the most technically complex.
-
-Here is the approach or chain-of-thought process , you can use to reach to the solution :
-Step 1: Analyze each row and it's contents in the CSV file , each Row represents a Github Repository
-
-    
-    
-    """
-    
-    prompt_template = """
-    
-    Understand the following to answer the question in an efficient way
-    
-    {context}
-
-    Question: {question}
-    Now answer the question. Let's think step by step:"""
-    PROMPT = PromptTemplate(
-    template=prompt_template, input_variables=["context", "question"]
-)
-    
-    
-    chain_type_kwargs = {"prompt": PROMPT}
-    
-    chain = RetrievalQA.from_chain_type(llm=ChatGroq(model_name="llama-3.1-8b-instant", temperature=0), chain_type="stuff", retriever=vectors.as_retriever(), input_key="question" , chain_type_kwargs=chain_type_kwargs)
-    
-    
-    st.subheader("Most Technically Complex Github Repository is")
-   
-    query = f"""
-    
-    
-Which is the most technically challenging repository from the given CSV file?
-
-Return the name of the repository , the link to the repository and the analysis of the repository showing why it is the most technically challenging/Complex repository.Try to provide a detailed analysis to hold your answer strong
-    
-The output should be in the following format:
-    
-Repository Name: <name of the repository>
-Repository Link: <link to the repository>
-Analysis: <analysis of the repository>
-    
-Provide a clickable link to the repository as well like this:
-To get the repo url , you can use this format :
-
-The username is : "{username}"
-
-
-"https://github.com/{username}/repository_name"
-
-
-[Repository Name](Repository Link) --> This is Important.Don't skip it 
-
-
-Let's think step by step about how to answer this question:
- 
-"""
-    result = chain({"question": query})
-    if result is not None:
-        st.write(result['result'])
-    else:
-        st.info("Please wait..")
-    st.stop()
-    
-       
-    
-
-# Main app
 def main():
-    config.init()
-    # Set up the app title and sidebar
-    st.title("GitHub Automated Analysis Tool")
-    st.sidebar.title("GitHub Automated Analysis Tool")
+    st.title("Talk To Code 💬💻")
+    st.sidebar.title("Configuration")
+    
+    repo_url = st.sidebar.text_input("Enter GitHub Repository URL", placeholder="https://github.com/user/repo")
+    
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+        
+    if "vectorstore" not in st.session_state:
+        st.session_state.vectorstore = None
+        st.session_state.current_repo = ""
+        st.session_state.qa_chain = None
 
-    # Input field for GitHub username
-    username = st.sidebar.text_input("Enter GitHub Username")
+    if repo_url and repo_url != st.session_state.current_repo:
+        with st.spinner(f"Cloning and analyzing {repo_url}..."):
+            vectorstore, msg = load_and_index_repo(repo_url)
+            if vectorstore:
+                st.session_state.vectorstore = vectorstore
+                st.session_state.current_repo = repo_url
+                st.session_state.messages = [{"role": "assistant", "content": f"Repository `{repo_url}` loaded successfully! What would you like to know about the code?"}]
+                
+                # Setup memory and chain
+                memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+                llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0)
+                st.session_state.qa_chain = ConversationalRetrievalChain.from_llm(
+                    llm=llm,
+                    retriever=vectorstore.as_retriever(search_kwargs={"k": 5}),
+                    memory=memory
+                )
+                try:
+                    st.rerun()
+                except AttributeError:
+                    st.experimental_rerun()
+            else:
+                st.sidebar.error(msg)
+                
+    # Display chat
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-    # Submit and clear buttons
-    submit_button = st.sidebar.button("Submit")
-    clear_button = st.sidebar.button("Clear")
-    st.sidebar.header("About")
-    st.sidebar.info("This Python-based tool , when given a GitHub user's URL, returns the most technically complex and challenging repository from that user's profile. The tool will use GPT and LangChain to assess each repository individually before determining the most technically challenging one.")
-    st.divider()
+    if st.session_state.vectorstore:
+        if prompt := st.chat_input("Ask a question about the codebase..."):
+            st.session_state.messages.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
 
-    # Display the repositories
-    if submit_button:
-        # Extract username if a full URL was pasted
-        if "http" in username:
-            username = username.strip("/").split("/")[-1]
-            
-        st.subheader(f"Repositories for {username}")
-        repos = fetch_github_repos(username)
-        if repos:
-            display_repos(repos)
-            st.info("Analysis of the repositories using LangChain and ChatGPT started. Please wait...")
-            get_user_repos(username)
-        else:
-            st.error("Invalid username or unable to fetch repositories")
-
-    # Clear the input field
-    if clear_button:
-        username = ""
-        st.experimental_rerun()
-
-
-
-
+            with st.chat_message("assistant"):
+                with st.spinner("Thinking..."):
+                    try:
+                        response = st.session_state.qa_chain({"question": prompt})
+                        answer = response["answer"]
+                        st.markdown(answer)
+                        st.session_state.messages.append({"role": "assistant", "content": answer})
+                    except Exception as e:
+                        st.error(f"Error querying the AI: {str(e)}")
+    else:
+        if not repo_url:
+            st.info("👈 Please paste a GitHub Repository URL in the sidebar to load a codebase!")
 
 if __name__ == "__main__":
     main()
