@@ -15,8 +15,8 @@ from github import Github
 from utils.constants import *
 
 load_dotenv()
-os.environ['GROQ_API_KEY'] = os.getenv('GROQ_API_KEY')
-os.environ['GITHUB_TOKEN'] = os.getenv('GITHUB_TOKEN')
+os.environ['GROQ_API_KEY'] = os.getenv('GROQ_API_KEY', '')
+os.environ['GITHUB_TOKEN'] = os.getenv('GITHUB_TOKEN', '')
 
 
 
