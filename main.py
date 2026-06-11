@@ -4,7 +4,7 @@ import os
 from dotenv import load_dotenv
 import pandas as pd
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from langchain_community.document_loaders import CSVLoader,TextLoader,DirectoryLoader
 from langchain_text_splitters import CharacterTextSplitter
 from langchain.chains import RetrievalQA
