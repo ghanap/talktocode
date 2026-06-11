@@ -67,7 +67,7 @@ def main():
     st.sidebar.title("Configuration")
     
     repo_url = st.sidebar.text_input("Enter GitHub Repository URL", placeholder="https://github.com/user/repo")
-    language = st.sidebar.selectbox("Response Language", ["English", "Hindi", "Tamil", "Telugu", "Bengali", "Marathi", "Gujarati", "Kannada", "Malayalam"])
+    language = st.sidebar.selectbox("Response Language", ["English", "Hindi", "Urdu", "Tamil", "Telugu", "Bengali", "Marathi", "Gujarati", "Kannada", "Malayalam"])
     
     if "messages" not in st.session_state:
         st.session_state.messages = []
