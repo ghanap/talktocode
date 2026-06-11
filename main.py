@@ -108,17 +108,19 @@ def get_user_repos(username):
     repo_info = []
     
     for repo in repos:
-        
+        try:
+            readme_text = repo.get_readme().decoded_content.decode('utf-8')[:2000]
+        except:
+            readme_text = "No README available."
+            
         repo_info.append({
             "name": repo.name,
             "description": repo.description,
             "language": repo.language,
             "stars": repo.stargazers_count,
             "forks": repo.forks_count,
-            "labels": repo.get_labels(),
-            "issues": repo.get_issues(state="all"),
-            "contents" : repo.get_contents(""),
-        
+            "readme_content": readme_text,
+            "contents" : [f.path for f in repo.get_contents("")][:20],
         })
         
     repo_info_df = pd.DataFrame(repo_info)
@@ -150,8 +152,8 @@ You will Analyze the following GitHub repository factors to determine the techni
 3.Number of stars
 4.Number of forks
 5.Labels of the repository
-6.Description of the repository
-7.Contents of the repository
+6.The actual README content and the architecture/features described within it
+7.Top-level file structure
 
 You can consider other factors as well if you think they are relevant for determining the technical complexity of a GitHub repository.
 Calculate the complexity score for each project by assigning weights to each factor and summing up the weighted scores. 
