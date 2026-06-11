@@ -180,7 +180,7 @@ Step 1: Analyze each row and it's contents in the CSV file , each Row represents
     
     chain_type_kwargs = {"prompt": PROMPT}
     
-    chain = RetrievalQA.from_chain_type(llm=ChatGroq(model_name="llama3-8b-8192", temperature=0), chain_type="stuff", retriever=vectors.as_retriever(), input_key="question" , chain_type_kwargs=chain_type_kwargs)
+    chain = RetrievalQA.from_chain_type(llm=ChatGroq(model_name="llama-3.1-8b-instant", temperature=0), chain_type="stuff", retriever=vectors.as_retriever(), input_key="question" , chain_type_kwargs=chain_type_kwargs)
     
     
     st.subheader("Most Technically Complex Github Repository is")
