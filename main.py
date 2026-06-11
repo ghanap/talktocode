@@ -67,6 +67,7 @@ def main():
     st.sidebar.title("Configuration")
     
     repo_url = st.sidebar.text_input("Enter GitHub Repository URL", placeholder="https://github.com/user/repo")
+    language = st.sidebar.selectbox("Response Language", ["English", "Hindi", "Tamil", "Telugu", "Bengali", "Marathi", "Gujarati", "Kannada", "Malayalam"])
     
     if "messages" not in st.session_state:
         st.session_state.messages = []
@@ -113,7 +114,8 @@ def main():
             with st.chat_message("assistant"):
                 with st.spinner("Thinking..."):
                     try:
-                        response = st.session_state.qa_chain({"question": prompt})
+                        lang_instruction = f"\n\n[System Requirement: You MUST provide your final response entirely in {language}.]" if language != "English" else ""
+                        response = st.session_state.qa_chain({"question": prompt + lang_instruction})
                         answer = response["answer"]
                         st.markdown(answer)
                         st.session_state.messages.append({"role": "assistant", "content": answer})
