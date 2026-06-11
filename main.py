@@ -3,13 +3,13 @@ import requests
 import os
 from dotenv import load_dotenv
 import pandas as pd
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain.prompts import PromptTemplate
-from langchain.document_loaders import CSVLoader,TextLoader,DirectoryLoader
-from langchain.text_splitter import CharacterTextSplitter
+from langchain_community.document_loaders import CSVLoader,TextLoader,DirectoryLoader
+from langchain_text_splitters import CharacterTextSplitter
 from langchain.chains import RetrievalQA
 from langchain_groq import ChatGroq
-from langchain.vectorstores import FAISS 
+from langchain_community.vectorstores import FAISS 
 import utils.config as config
 from github import Github
 from utils.constants import *
