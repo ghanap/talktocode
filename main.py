@@ -9,6 +9,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain.chains import ConversationalRetrievalChain
+from langchain_community.chat_models import ChatOllama
 from langchain_groq import ChatGroq
 from langchain.memory import ConversationBufferMemory
 
@@ -69,6 +70,14 @@ def main():
     repo_url = st.sidebar.text_input("Enter GitHub Repository URL", placeholder="https://github.com/user/repo")
     language = st.sidebar.selectbox("Response Language", ["English", "Hindi", "Urdu", "Tamil", "Telugu", "Bengali", "Marathi", "Gujarati", "Kannada", "Malayalam"])
     
+    st.sidebar.divider()
+    provider = st.sidebar.radio("LLM Provider", ["Groq (Cloud)", "Ollama (Local)"])
+    ollama_model = "llama3"
+    ollama_base_url = "http://localhost:11434"
+    if provider == "Ollama (Local)":
+        ollama_model = st.sidebar.text_input("Ollama Model Name", value="llama3")
+        ollama_base_url = st.sidebar.text_input("Ollama Base URL", value="http://localhost:11434")
+    
     if "messages" not in st.session_state:
         st.session_state.messages = []
         
@@ -84,21 +93,32 @@ def main():
                 st.session_state.vectorstore = vectorstore
                 st.session_state.current_repo = repo_url
                 st.session_state.messages = [{"role": "assistant", "content": f"Repository `{repo_url}` loaded successfully! What would you like to know about the code?"}]
-                
-                # Setup memory and chain
-                memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-                llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0)
-                st.session_state.qa_chain = ConversationalRetrievalChain.from_llm(
-                    llm=llm,
-                    retriever=vectorstore.as_retriever(search_kwargs={"k": 5}),
-                    memory=memory
-                )
-                try:
-                    st.rerun()
-                except AttributeError:
-                    st.experimental_rerun()
+                st.session_state.qa_chain = None # force rebuild
             else:
                 st.sidebar.error(msg)
+                
+    if st.session_state.vectorstore:
+        # Rebuild chain if provider config changed or if chain is None
+        config_changed = (
+            st.session_state.get("current_provider") != provider or 
+            st.session_state.get("ollama_model") != ollama_model or 
+            st.session_state.get("ollama_base_url") != ollama_base_url
+        )
+        if st.session_state.qa_chain is None or config_changed:
+            memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+            if provider == "Groq (Cloud)":
+                llm = ChatGroq(model_name="llama-3.1-8b-instant", temperature=0)
+            else:
+                llm = ChatOllama(model=ollama_model, base_url=ollama_base_url, temperature=0)
+                
+            st.session_state.qa_chain = ConversationalRetrievalChain.from_llm(
+                llm=llm,
+                retriever=st.session_state.vectorstore.as_retriever(search_kwargs={"k": 5}),
+                memory=memory
+            )
+            st.session_state.current_provider = provider
+            st.session_state.ollama_model = ollama_model
+            st.session_state.ollama_base_url = ollama_base_url
                 
     # Display chat
     for message in st.session_state.messages:
