@@ -12,6 +12,10 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain_community.chat_models import ChatOllama
 from langchain_groq import ChatGroq
 from langchain.memory import ConversationBufferMemory
+from github import Github
+import pandas as pd
+from io import StringIO
+import datetime
 
 load_dotenv()
 os.environ['GROQ_API_KEY'] = os.getenv('GROQ_API_KEY', '')
@@ -63,49 +67,44 @@ def load_and_index_repo(repo_url):
     
     return vectorstore, "Success"
 
-MOCK_REVIEWS = [
-    {"user": "CodeNinja99", "rating": 5, "comment": "This app completely changed how I dive into new repos! The local Ollama support is a godsend for proprietary code."},
-    {"user": "OpenSourceDev", "rating": 4, "comment": "Really fast indexing. Wish it supported PDF documentation files too, but talking to the code works perfectly!"},
-    {"user": "BugSquasher", "rating": 5, "comment": "Mind-blowing. I pasted a huge legacy C++ repo and it instantly explained the architecture in Tamil. 10/10."},
-    {"user": "ReactFanboy", "rating": 5, "comment": "The Chat UI is super clean. Groq's Llama 3.1 integration is blisteringly fast!"},
-    {"user": "SysAdminJoe", "rating": 4, "comment": "Great tool for auditing scripts without reading thousands of lines. The language translation is a neat trick."},
-    {"user": "Pythonista", "rating": 5, "comment": "No more digging through spaghetti code! Talk To Code finds exactly what I need in seconds."},
-    {"user": "DevOpsDan", "rating": 5, "comment": "I use this daily to understand random GitHub repos before cloning them. Saves me hours."},
-    {"user": "FrontendFairy", "rating": 4, "comment": "Super helpful! Sometimes it gets confused if there are multiple files with the same name, but overall magic."},
-    {"user": "DataScientistX", "rating": 5, "comment": "The FAISS vectorization is surprisingly accurate. It never hallucinates code that isn't there."},
-    {"user": "HackerAnon", "rating": 5, "comment": "Running this with local Ollama means zero data leaks. Perfect for enterprise use."},
-    {"user": "NoobCoder", "rating": 5, "comment": "As a beginner, having an AI explain GitHub repos to me in plain English has accelerated my learning so much!"},
-    {"user": "TechLeadTom", "rating": 4, "comment": "Solid prototype. The code chunking works well for standard files."},
-    {"user": "AI_Enthusiast", "rating": 5, "comment": "The speed of the Groq API combined with FAISS is unmatched. Literal instant answers."},
-    {"user": "RustDeveloper", "rating": 5, "comment": "It parsed my massive Rust workspace without breaking a sweat. Impressive."},
-    {"user": "SecurityPro", "rating": 5, "comment": "Love the local model option. Finally, a code assistant that doesn't send my code to the cloud."},
-    {"user": "CloudArchitect", "rating": 4, "comment": "Very useful for understanding infrastructure-as-code repos. Could use some UI tweaks but functionality is stellar."},
-    {"user": "UXDesigner", "rating": 5, "comment": "Streamlit makes it look so clean and simple. The chat interface is intuitive."},
-    {"user": "JavaGuru", "rating": 4, "comment": "Good tool. Helps me navigate giant enterprise Java repos a lot faster."},
-    {"user": "StartupFounder", "rating": 5, "comment": "We use this to quickly evaluate open-source libraries before adopting them. Huge time saver!"},
-    {"user": "GoLangNinja", "rating": 5, "comment": "Blazing fast codebase analysis. The multi-language support is the cherry on top."},
-    {"user": "SwiftDev", "rating": 5, "comment": "Works surprisingly well on iOS repos too. Great context retrieval."},
-    {"user": "RubyRider", "rating": 4, "comment": "Nice implementation of RAG. The UI is snappy."},
-    {"user": "C_Hacker", "rating": 5, "comment": "It found a buffer overflow in my code just by me asking 'Are there any security issues?' Crazy!"},
-    {"user": "WebMaster", "rating": 5, "comment": "Being able to chat with a codebase in Bengali is something I never thought I'd see. Brilliant."},
-    {"user": "MachineLearningPhD", "rating": 5, "comment": "A masterclass in how to build a practical, useful RAG application. Outstanding work."},
-    {"user": "WeekendHacker", "rating": 4, "comment": "Super fun to play around with. Exploring repos has never been this interactive."}
-]
+def save_review(rating, comment):
+    try:
+        g = Github(os.environ.get('GITHUB_TOKEN'))
+        repo = g.get_repo("ghanap/talktocode")
+        try:
+            file = repo.get_contents("reviews.csv")
+            content = file.decoded_content.decode("utf-8")
+            df = pd.read_csv(StringIO(content))
+        except Exception:
+            df = pd.DataFrame(columns=["timestamp", "rating", "comment"])
+            
+        new_row = {"timestamp": datetime.datetime.now().isoformat(), "rating": rating, "comment": comment}
+        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        
+        csv_str = df.to_csv(index=False)
+        if 'file' in locals():
+            repo.update_file("reviews.csv", "Add new anonymous user review", csv_str, file.sha)
+        else:
+            repo.create_file("reviews.csv", "Create reviews.csv for feedback", csv_str)
+        return True
+    except Exception as e:
+        return False
 
-def show_reviews():
-    st.markdown("### 🌟 Real-Time User Feedback")
+def show_feedback_form():
+    st.markdown("### 📝 Leave Anonymous Feedback")
+    st.write("Your feedback helps us improve! All submissions are completely anonymous.")
     
-    avg_rating = sum(r['rating'] for r in MOCK_REVIEWS) / len(MOCK_REVIEWS)
-    st.write(f"**Overall Rating:** {avg_rating:.1f} / 5.0 ⭐ ({len(MOCK_REVIEWS)} Reviews)")
-    
-    st.markdown("#### Summary")
-    st.info("Users overwhelmingly praise **Talk To Code** for its blazing-fast speed (powered by Groq), flawless local privacy (Ollama support), and the magical ability to explain complex codebases in native regional languages. It is widely considered a game-changer for auditing and learning from large GitHub repositories.")
-    
-    st.markdown("---")
-    for review in MOCK_REVIEWS:
-        st.markdown(f"**{review['user']}** {'⭐' * review['rating']}")
-        st.write(f'"{review["comment"]}"')
-        st.markdown("---")
+    with st.form("feedback_form", clear_on_submit=True):
+        rating = st.slider("Rating (1-5 Stars)", min_value=1, max_value=5, value=5)
+        comment = st.text_area("Your thoughts (optional)", placeholder="Works great! ...")
+        submitted = st.form_submit_button("Submit Anonymous Feedback")
+        
+        if submitted:
+            with st.spinner("Saving securely..."):
+                if save_review(rating, comment):
+                    st.success("Thank you! Your feedback has been saved securely.")
+                else:
+                    st.error("Failed to save feedback right now. Please try again later.")
 
 def main():
     st.title("Talk To Code 💬💻")
@@ -165,7 +164,7 @@ def main():
             st.session_state.ollama_base_url = ollama_base_url
                 
     # Layout tabs
-    tab1, tab2 = st.tabs(["💬 Chat", "🌟 User Reviews"])
+    tab1, tab2 = st.tabs(["💬 Chat", "📝 Leave Feedback"])
     
     with tab1:
         # Display chat
@@ -194,7 +193,7 @@ def main():
                 st.info("👈 Please paste a GitHub Repository URL in the sidebar to load a codebase!")
                 
     with tab2:
-        show_reviews()
+        show_feedback_form()
 
 if __name__ == "__main__":
     main()
