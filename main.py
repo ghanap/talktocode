@@ -280,5 +280,6 @@ def main():
         show_feedback_form()
 
 
+# Entry point for the Streamlit application
 if __name__ == "__main__":
     main()
