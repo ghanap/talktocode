@@ -20,7 +20,7 @@ import datetime
 load_dotenv()
 os.environ["GROQ_API_KEY"] = os.getenv("GROQ_API_KEY", "")
 os.environ["GITHUB_TOKEN"] = os.getenv("GITHUB_TOKEN", "")
-# Initialize environment configs for RAG pipeline
+# Load environment variables for RAG pipeline
 
 st.set_page_config(page_title="Talk To Code Chatbot", page_icon="💬", layout="wide")
 
