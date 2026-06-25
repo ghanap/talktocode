@@ -1,5 +1,7 @@
 stages:
-  - build
+  - prepare
+  - lint
+  - security
   - test
 
 variables:
@@ -9,17 +11,52 @@ cache:
   paths:
     - .cache/pip
 
-build_job:
-  stage: build
+install_dependencies:
+  stage: prepare
   image: python:3.11
   script:
     - echo "Setting up Python environment..."
     - pip install --upgrade pip
     - pip install -r requirements.txt
+    - pip install ruff mypy bandit pip-audit pytest types-requests
 
-test_job:
+code_quality:
+  stage: lint
+  image: python:3.11
+  script:
+    - echo "Running code formatting and linting checks..."
+    - pip install ruff
+    - python -m ruff format --check .
+    - python -m ruff check .
+
+type_check:
+  stage: lint
+  image: python:3.11
+  script:
+    - echo "Running static type analysis..."
+    - pip install mypy types-requests
+    - python -m mypy --ignore-missing-imports main.py
+
+security_audit:
+  stage: security
+  image: python:3.11
+  script:
+    - echo "Running Bandit for security vulnerabilities..."
+    - pip install bandit
+    - python -m bandit -ll -ii -r .
+
+dependency_audit:
+  stage: security
+  image: python:3.11
+  script:
+    - echo "Running pip-audit for vulnerable packages..."
+    - pip install pip-audit
+    - python -m pip_audit --desc on
+
+unit_tests:
   stage: test
   image: python:3.11
   script:
-    - echo "Running basic checks..."
-    - python -m py_compile main.py
+    - echo "Running unit tests..."
+    - pip install pytest
+    - python -m pytest tests/
