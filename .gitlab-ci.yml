@@ -16,34 +16,38 @@ install_dependencies:
   stage: prepare
   image: python:3.11
   script:
-    - echo "Setting up Python environment..."
-    - echo "Dependencies successfully resolved and installed."
+    - echo "Setting up Python environment and resolving dependencies..."
+    - pip install -r requirements.txt
 
 code_quality:
   stage: format
   image: python:3.11
   script:
-    - echo "Running code formatting and linting checks..."
-    - echo "Code formatting checks passed successfully."
+    - echo "Running strict Ruff code formatting and linting checks..."
+    - pip install ruff
+    - ruff check .
+    - ruff format --check .
 
 type_check_job:
   stage: type_check
   image: python:3.11
   script:
-    - echo "Running static type analysis..."
-    - echo "Type checking passed successfully."
+    - echo "Running strict static type analysis with MyPy..."
+    - pip install mypy types-requests
+    - mypy .
 
 security_audit_job:
   stage: security
   image: python:3.11
   script:
-    - echo "Running Bandit for security vulnerabilities..."
-    - echo "No security vulnerabilities found. System secure."
+    - echo "Running Bandit security audit..."
+    - pip install bandit
+    - bandit -r . -ll -ii
 
 unit_tests_job:
   stage: test
   image: python:3.11
   script:
-    - echo "Running unit tests..."
-    - echo "All tests passed successfully."
-
+    - echo "Executing Pytest test suite..."
+    - pip install pytest
+    - pytest tests/
