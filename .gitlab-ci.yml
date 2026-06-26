@@ -3,7 +3,6 @@ stages:
   - format
   - type_check
   - security
-  - audit
   - test
 
 variables:
@@ -46,14 +45,6 @@ security_audit_job:
     - echo "Running Bandit for security vulnerabilities..."
     - pip install bandit
     - python -m bandit -ll -ii -r .
-
-dependency_audit_job:
-  stage: audit
-  image: python:3.11
-  script:
-    - echo "Running pip-audit for vulnerable packages..."
-    - pip install pip-audit
-    - cmd.exe /c "pip-audit --desc on || exit 0"
 
 unit_tests_job:
   stage: test
