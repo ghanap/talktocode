@@ -30,8 +30,6 @@ dev = [
 ]
 
 [tool.ruff]
-# Point back to the Master template in the root
-extend = "../../../pyproject.toml"
 
 [tool.ruff.lint.isort]
 # Categorizes the local package for correct import sorting
