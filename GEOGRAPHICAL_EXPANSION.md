@@ -9,7 +9,7 @@ Our initial deployment targets English-speaking tech hubs. The application is ho
 
 ### Phase 2: Localization and Internationalization (i18n)
 To expand our reach horizontally, the application must transcend language barriers.
-*   **Prompt Localization:** The core ADK agent instructions will be translated to support Spanish, French, German, and Japanese.
+*   **Prompt Localization:** The core ADK agent instructions will be translated to support Spanish, French, German, Japanese, and major Indian languages including Hindi, Telugu, Tamil, and Bengali.
 *   **UI Internationalization:** The web interface will implement i18n libraries to allow users to select their native language.
 *   **Database Scaling:** We will deploy Google Cloud SQL Read-Replicas in `asia-northeast1` (Tokyo) and `southamerica-east1` (São Paulo) to ensure lightning-fast database queries for users in those regions.
 
